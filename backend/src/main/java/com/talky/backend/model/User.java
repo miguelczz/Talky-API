@@ -2,6 +2,9 @@ package com.talky.backend.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+
 import java.time.Instant;
 import java.util.UUID;
 
@@ -28,11 +31,19 @@ public class User {
 
     private String role;
 
-    @Column(name = "created_at", updatable = false, insertable = false,
-            columnDefinition = "timestamptz default now()")
+    @Column(name = "phone_number")
+    private String phoneNumber;
+
+    private String birthdate;
+
+    private String gender;
+
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
     private Instant createdAt;
 
-    @Column(name = "updated_at", insertable = false,
-            columnDefinition = "timestamptz default now()")
+    @UpdateTimestamp
+    @Column(name = "updated_at")
     private Instant updatedAt;
+
 }

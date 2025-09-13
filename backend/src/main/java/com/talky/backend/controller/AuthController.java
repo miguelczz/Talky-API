@@ -16,31 +16,38 @@ public class AuthController {
 
     private final UserService userService;
 
-    // público, útil para probar conectividad
+    // endpoint publico para verificar conectividad
     @GetMapping("/ping")
     public String ping() {
         return "pong";
     }
 
-    // privado, requiere JWT válido
+    // endpoint privado, requiere un JWT valido (ID Token)
     @GetMapping("/me")
     public User getCurrentUser(@AuthenticationPrincipal Jwt jwt) {
         String sub = jwt.getClaim("sub");
         String email = jwt.getClaim("email");
-        String name = jwt.getClaim("username");
+        String name = jwt.getClaim("name");
+        String birthdate = jwt.getClaim("birthdate");
+        String gender = jwt.getClaim("gender");
+        String phoneNumber = jwt.getClaim("phone_number");
 
-        // buscar usuario en la BD
         return userService.getByCognitoSub(sub)
-                .orElseGet(() -> {
-                    // si no existe, se crea en la BD
-                    User newUser = User.builder()
-                            .cognitoSub(sub)
-                            .email(email != null ? email : sub + "@placeholder.com")
-                            .name(name)
-                            .role("student") // rol por defecto
-                            .build();
-                    return userService.save(newUser);
-                });
+                .orElseGet(() ->
+                        userService.getByEmail(email)
+                                .orElseGet(() -> {
+                                    User newUser = User.builder()
+                                            .cognitoSub(sub)
+                                            .email(email)
+                                            .name(name)
+                                            .birthdate(birthdate)
+                                            .gender(gender)
+                                            .phoneNumber(phoneNumber)
+                                            .role("student")
+                                            .build();
+                                    return userService.save(newUser);
+                                })
+                );
     }
 
 }
