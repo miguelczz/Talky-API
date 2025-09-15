@@ -8,6 +8,9 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+import java.util.UUID;
+
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
@@ -17,14 +20,13 @@ public class UserController {
         this.userService = userService;
     }
 
-    // Endpoint para reflejar al usuario en la base de datos local
-    @PostMapping("/sync")
-    public ResponseEntity<User> syncUser(
-            @AuthenticationPrincipal Jwt jwt,
-            @RequestBody UserSyncRequest req) {
+    @GetMapping
+    public ResponseEntity<List<User>> getAllUsers() {
+        return ResponseEntity.ok(userService.getAllUsers());
+    }
 
-        String cognitoSub = jwt.getSubject(); // se obtiene el sub desde el token JWT
-        User user = userService.syncUser(cognitoSub, req);
-        return ResponseEntity.ok(user);
+    @GetMapping("/{id}")
+    public ResponseEntity<User> getUserById(@PathVariable UUID id) {
+        return ResponseEntity.ok(userService.getUserById(id));
     }
 }

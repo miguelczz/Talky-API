@@ -10,7 +10,7 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     // Buscar usuario por cognito_sub o email
     Optional<User> findByCognitoSub(String cognitoSub);
-    Optional<User> getByEmail(String email);
+    Optional<User> findByEmail(String email);
 
     boolean existsByEmail(String email);
 }

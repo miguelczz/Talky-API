@@ -2,6 +2,7 @@ package com.talky.backend.dto;
 
 // Este DTO representa los datos que llegan desde el frontend
 public class UserSyncRequest {
+    private String sub; // Identificador único de Cognito
     private String email;
     private String name;
     private String role;
@@ -10,6 +11,9 @@ public class UserSyncRequest {
     private String gender;
 
     // getters y setters
+    public String getSub() { return sub; }
+    public void setSub(String sub) { this.sub = sub; }
+
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
 
