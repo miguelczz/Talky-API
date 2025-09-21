@@ -6,6 +6,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -21,6 +22,7 @@ public class User {
     @GeneratedValue
     private UUID id;
 
+    // Sub de Cognito para identificar al usuario
     @Column(nullable = false, unique = true, name = "cognito_sub")
     private String cognitoSub;
 
@@ -29,7 +31,9 @@ public class User {
 
     private String name;
 
-    private String role;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Role role;  // STUDENT, TEACHER, ADMIN
 
     @Column(name = "phone_number")
     private String phoneNumber;
@@ -37,6 +41,15 @@ public class User {
     private String birthdate;
 
     private String gender;
+
+    // Relación: un profesor puede dictar varios cursos
+    @OneToMany(mappedBy = "teacher", cascade = CascadeType.ALL)
+    private List<Course> coursesAsTeacher;
+
+    // Relación: un estudiante puede estar inscrito en un solo curso
+    @ManyToOne
+    @JoinColumn(name = "course_id")
+    private Course courseAsStudent;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
@@ -46,4 +59,9 @@ public class User {
     @Column(name = "updated_at")
     private Instant updatedAt;
 
+    public enum Role {
+        STUDENT,
+        TEACHER,
+        ADMIN
+    }
 }

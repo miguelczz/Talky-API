@@ -43,7 +43,7 @@ public class AuthController {
                                             .birthdate(birthdate)
                                             .gender(gender)
                                             .phoneNumber(phoneNumber)
-                                            .role("student")
+                                            .role(User.Role.STUDENT)
                                             .build();
                                     return userService.save(newUser);
                                 })
@@ -60,7 +60,7 @@ public class AuthController {
         req.setBirthdate(jwt.getClaim("birthdate"));
         req.setGender(jwt.getClaim("gender"));
         req.setPhoneNumber(jwt.getClaim("phone_number"));
-        req.setRole("student"); // o mapear desde claim si ya lo manejas en Cognito
+        req.setRole(User.Role.STUDENT);
 
         User user = userService.syncUser(req);
         return ResponseEntity.ok(user);
