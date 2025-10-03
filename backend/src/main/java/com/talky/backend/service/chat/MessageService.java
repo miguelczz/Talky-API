@@ -1,5 +1,7 @@
 package com.talky.backend.service.chat;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.talky.backend.dto.message.MessageRequestDto;
 import com.talky.backend.dto.message.MessageResponseDto;
 import com.talky.backend.model.User;
@@ -36,12 +38,12 @@ public class MessageService {
 
     /**
      * Maneja el flujo completo de un mensaje:
-     *  - Verifica/crea conversación
-     *  - Evita mensajes simultáneos en la misma conversación
-     *  - Guarda mensaje del usuario
-     *  - Llama a N8N para respuesta IA
-     *  - Guarda respuesta de la IA
-     *  - Aplica lógica de resúmenes si supera el límite de mensajes
+     * - Verifica/crea conversación
+     * - Evita mensajes simultáneos en la misma conversación
+     * - Guarda mensaje del usuario
+     * - Llama a N8N para respuesta IA
+     * - Guarda respuesta de la IA
+     * - Aplica lógica de resúmenes si supera el límite de mensajes
      */
     public MessageResponseDto handleMessage(MessageRequestDto request) {
         // 1. Obtener el usuario a partir del email
@@ -120,7 +122,8 @@ public class MessageService {
 
             // 8. Retornar DTO para el front
             return MessageResponseDto.builder()
-                    .respuesta(respuesta)
+                    .content(respuesta)
+                    .type("AI")
                     .conversationId(conversationId.toString())
                     .timestamp(aiMessage.getCreatedAt())
                     .build();
@@ -134,10 +137,22 @@ public class MessageService {
     /**
      * Obtiene los últimos N mensajes de una conversación, incluyendo resúmenes.
      */
-    public List<Message> getRecentMessages(Conversation conversation) {
+    public List<MessageResponseDto> getRecentMessages(Conversation conversation) {
         List<Message> recent = messageRepository.findTop50ByConversationOrderByCreatedAtDesc(conversation);
+
+        // Los devuelve al revés, así que los invertimos
         Collections.reverse(recent);
-        return recent;
+
+        // Mapeamos a DTO
+        return recent.stream()
+                .map(m -> MessageResponseDto.builder()
+                        .content(m.getContent())
+                        .type(m.getType().name())
+                        .conversationId(m.getConversation().getId().toString())
+                        .timestamp(m.getCreatedAt())
+                        .build()
+                )
+                .toList();
     }
 
     /**
@@ -146,9 +161,26 @@ public class MessageService {
     private String callN8n(MessageRequestDto request) {
         try {
             String url = "http://localhost:5678/webhook/talky-ia";
-            MessageResponseDto response = restTemplate.postForObject(url, request, MessageResponseDto.class);
-            return response != null ? response.getRespuesta() : "No se recibió respuesta de la IA";
+            RestTemplate restTemplate = new RestTemplate();
+
+            // Pedimos la respuesta como String
+            String rawResponse = restTemplate.postForObject(url, request, String.class);
+            System.out.println(">>> Respuesta RAW de N8N: " + rawResponse);
+
+            // Parseamos con Jackson
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode json = mapper.readTree(rawResponse);
+
+            // N8N devuelve {"respuesta":"..."}
+            if (json.has("respuesta")) {
+                return json.get("respuesta").asText();
+            }
+
+            // Fallback: si no encontramos campo esperado
+            return rawResponse;
+
         } catch (Exception e) {
+            e.printStackTrace();
             return "Error al conectar con el servicio de IA";
         }
     }

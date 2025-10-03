@@ -4,7 +4,6 @@ import com.talky.backend.dto.message.MessageRequestDto;
 import com.talky.backend.dto.message.MessageResponseDto;
 import com.talky.backend.model.User;
 import com.talky.backend.model.chat.Conversation;
-import com.talky.backend.model.chat.Message;
 import com.talky.backend.service.UserService;
 import com.talky.backend.service.chat.ConversationService;
 import com.talky.backend.service.chat.MessageService;
@@ -48,7 +47,7 @@ public class MessageController {
     public ResponseEntity<MessageResponseDto> sendMessage(
             @AuthenticationPrincipal Jwt principal,
             @PathVariable UUID conversationId,
-            @RequestBody Map<String, String> request) {
+            @RequestBody MessageRequestDto request) {
 
         String sub = principal.getClaim("sub");
         User user = userService.getByCognitoSub(sub)
@@ -59,24 +58,19 @@ public class MessageController {
         if (!bucket.tryConsume(1)) {
             return ResponseEntity.status(429).body(
                     MessageResponseDto.builder()
-                            .respuesta("Has excedido el límite de mensajes permitidos.")
+                            .content("Has excedido el límite de mensajes permitidos.")
                             .conversationId(conversationId.toString())
                             .timestamp(Instant.now())
                             .build()
             );
         }
 
-        String userMessage = request.get("message");
+        // Aseguramos que se setea el email del user
+        request.setStudentEmail(user.getEmail());
+        request.setConversationId(conversationId.toString());
 
-        // Construir DTO limpio para el service
-        MessageRequestDto dto = MessageRequestDto.builder()
-                .studentEmail(user.getEmail())
-                .prompt(userMessage)
-                .conversationId(conversationId.toString())
-                .build();
-
-        // Delegar al service
-        MessageResponseDto response = messageService.handleMessage(dto);
+        // Delegamos al service
+        MessageResponseDto response = messageService.handleMessage(request);
         return ResponseEntity.ok(response);
     }
 
@@ -84,24 +78,13 @@ public class MessageController {
      * Obtiene el historial reducido (últimos N mensajes) de una conversación.
      */
     @GetMapping("/{conversationId}")
-    public ResponseEntity<List<MessageResponseDto>> getConversationHistory(
-            @PathVariable UUID conversationId) {
-
+    public ResponseEntity<List<MessageResponseDto>> getConversationHistory(@PathVariable UUID conversationId) {
         Conversation conversation = conversationService.getById(conversationId)
                 .orElseThrow(() -> new RuntimeException("Conversación no encontrada"));
 
-        List<Message> messages = messageService.getRecentMessages(conversation);
+        List<MessageResponseDto> messages = messageService.getRecentMessages(conversation);
 
-        // Mapear entidad -> DTO
-        List<MessageResponseDto> response = messages.stream()
-                .map(m -> MessageResponseDto.builder()
-                        .respuesta(m.getContent())
-                        .conversationId(conversationId.toString())
-                        .timestamp(m.getCreatedAt())
-                        .build())
-                .toList();
-
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(messages);
     }
 
     /**

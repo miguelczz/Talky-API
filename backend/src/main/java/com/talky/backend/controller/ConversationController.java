@@ -1,9 +1,12 @@
-package com.talky.backend.controller.chat;
+package com.talky.backend.controller;
 
+import com.talky.backend.dto.conversation.ConversationRequestDto;
+import com.talky.backend.dto.conversation.ConversationResponseDto;
 import com.talky.backend.model.User;
 import com.talky.backend.model.chat.Conversation;
 import com.talky.backend.service.UserService;
 import com.talky.backend.service.chat.ConversationService;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -56,6 +59,17 @@ public class ConversationController {
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
 
         return ResponseEntity.ok(conversationService.getAllByUser(user));
+    }
+
+    /**
+     * Actualiza el título de una conversación específica.
+     */
+    @PutMapping("/{id}")
+    public ResponseEntity<ConversationResponseDto> updateTitle(
+            @PathVariable UUID id,
+            @Valid @RequestBody ConversationRequestDto request) {
+        Conversation updated = conversationService.updateTitle(id, request.getTitle());
+        return ResponseEntity.ok(ConversationResponseDto.fromEntity(updated));
     }
 
     /**

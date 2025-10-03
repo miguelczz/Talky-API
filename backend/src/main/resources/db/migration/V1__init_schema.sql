@@ -112,12 +112,13 @@ CREATE TABLE user_exam_results (
 CREATE TABLE conversations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL,
-    title VARCHAR(255) NOT NULL,
+    title VARCHAR(120) NOT NULL,
     mode VARCHAR(50) NOT NULL,
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now(),
     CONSTRAINT fk_conversation_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    CONSTRAINT chk_conversation_mode CHECK (mode IN ('STUDENT', 'TEACHER'))
+    CONSTRAINT chk_conversation_mode CHECK (mode IN ('STUDENT', 'TEACHER')),
+    CONSTRAINT uq_conversation_user_title UNIQUE (user_id, title)
 );
 
 -- Mensajes dentro de una conversación
@@ -139,6 +140,21 @@ CREATE TABLE conversation_summaries (
     created_at TIMESTAMPTZ DEFAULT now(),
     CONSTRAINT fk_summary_conversation FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
 );
+
+-- Tabla del glosario (vocabulario por usuario)
+CREATE TABLE glossary_words (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    word VARCHAR(255) NOT NULL,
+    meaning TEXT NOT NULL,
+    archived BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now(),
+    CONSTRAINT fk_glossary_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT uq_user_word UNIQUE (user_id, word)
+);
+
+CREATE INDEX idx_glossary_user_id ON glossary_words(user_id);
 
 -- ============================================
 -- 4. Índices

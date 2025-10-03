@@ -10,7 +10,12 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "conversations")
+@Table(
+        name = "conversations",
+        uniqueConstraints = {
+                @UniqueConstraint(columnNames = {"user_id", "title"})
+        }
+)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -32,7 +37,7 @@ public class Conversation {
     /**
      * Título de la conversación.
      */
-    @Column(nullable = false)
+    @Column(nullable = false, length = 120)
     private String title;
 
     /**
@@ -40,7 +45,6 @@ public class Conversation {
      */
     @Column(nullable = false)
     private String mode;
-
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)

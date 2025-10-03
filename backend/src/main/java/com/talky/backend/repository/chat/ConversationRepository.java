@@ -16,15 +16,17 @@ import java.util.UUID;
  */
 public interface ConversationRepository extends JpaRepository<Conversation, UUID> {
 
+    boolean existsByUserAndTitle(User user, String title);
+
     /**
      * Obtiene todas las conversaciones asociadas a un usuario específico.
-     *Se usa cuando el estudiante quiere listar sus conversaciones en el frontend.
+     * Se usa cuando el estudiante quiere listar sus conversaciones en el frontend.
      */
     List<Conversation> findByUser(User user);
 
     /**
      * Cuenta cuántas conversaciones tiene actualmente un usuario, filtrando por su email.
-     *
+     * <p>
      * Útil para verificar si el estudiante alcanzó el límite de conversaciones
      * antes de permitirle crear una nueva.
      */
