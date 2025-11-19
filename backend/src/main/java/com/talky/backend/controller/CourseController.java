@@ -1,17 +1,20 @@
 package com.talky.backend.controller;
 
+import com.talky.backend.dto.course.CourseRequestDto;
+import com.talky.backend.dto.course.CourseResponseDto;
 import com.talky.backend.model.Course;
 import com.talky.backend.model.User;
 import com.talky.backend.service.CourseService;
 import com.talky.backend.service.UserService;
+import com.talky.backend.util.SecurityUtils;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/courses")
@@ -19,10 +22,12 @@ public class CourseController {
 
     private final CourseService courseService;
     private final UserService userService;
+    private final SecurityUtils securityUtils;
 
-    public CourseController(CourseService courseService, UserService userService) {
+    public CourseController(CourseService courseService, UserService userService, SecurityUtils securityUtils) {
         this.courseService = courseService;
         this.userService = userService;
+        this.securityUtils = securityUtils;
     }
 
     /**
@@ -32,26 +37,66 @@ public class CourseController {
      */
     @PostMapping
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ResponseEntity<Course> createCourse(@RequestBody Course course,
-                                               @AuthenticationPrincipal Jwt jwt) {
+    public ResponseEntity<CourseResponseDto> createCourse(@Valid @RequestBody CourseRequestDto request) {
+        User currentUser = securityUtils.getCurrentUserOrThrow();
+        
+        Course course = new Course();
+        course.setTitle(request.getTitle());
+        course.setDescription(request.getDescription());
+        
         // Si es un profesor, lo asignamos automáticamente como teacher del curso
-        if (jwt.getClaimAsStringList("cognito:groups").contains("TEACHER")) {
-            String cognitoSub = jwt.getClaim("sub");
-            User teacher = userService.getByCognitoSub(cognitoSub)
-                    .orElseThrow(() -> new RuntimeException("Profesor no encontrado"));
+        if (currentUser.getRole() == User.Role.TEACHER) {
+            course.setTeacher(currentUser);
+        } else if (request.getTeacherId() != null) {
+            // Si es ADMIN y especificó un teacherId, lo usamos
+            User teacher = userService.getUserById(request.getTeacherId());
+            if (teacher.getRole() != User.Role.TEACHER) {
+                throw new RuntimeException("El usuario especificado no es un profesor");
+            }
             course.setTeacher(teacher);
+        } else {
+            throw new RuntimeException("Debe especificar un profesor para el curso");
         }
-        return ResponseEntity.ok(courseService.save(course));
+        
+        Course savedCourse = courseService.save(course);
+        return ResponseEntity.ok(CourseResponseDto.fromCourse(savedCourse));
     }
 
     /**
-     * Obtiene la lista de todos los cursos.
-     * Todos los roles tienen acceso.
+     * Obtiene la lista de cursos según el rol del usuario.
+     * - Estudiantes: solo ven su curso asignado
+     * - Profesores: ven los cursos que dictan
+     * - Administradores: ven todos los cursos
      */
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN','TEACHER','STUDENT')")
-    public ResponseEntity<List<Course>> getAllCourses() {
-        return ResponseEntity.ok(courseService.findAll());
+    public ResponseEntity<List<CourseResponseDto>> getAllCourses() {
+        User currentUser = securityUtils.getCurrentUserOrThrow();
+        List<Course> courses;
+
+        if (currentUser.getRole() == User.Role.STUDENT) {
+            // Estudiantes solo ven su curso asignado
+            if (currentUser.getCourseAsStudent() != null) {
+                courses = List.of(currentUser.getCourseAsStudent());
+            } else {
+                courses = List.of();
+            }
+        } else if (currentUser.getRole() == User.Role.TEACHER) {
+            // Profesores ven los cursos que dictan
+            courses = courseService.findAll().stream()
+                    .filter(course -> course.getTeacher() != null &&
+                            course.getTeacher().getId().equals(currentUser.getId()))
+                    .collect(Collectors.toList());
+        } else {
+            // Administradores ven todos los cursos
+            courses = courseService.findAll();
+        }
+
+        List<CourseResponseDto> dtos = courses.stream()
+                .map(CourseResponseDto::fromCourse)
+                .collect(Collectors.toList());
+        
+        return ResponseEntity.ok(dtos);
     }
 
     /**
@@ -60,8 +105,9 @@ public class CourseController {
      */
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN','TEACHER','STUDENT')")
-    public ResponseEntity<Course> getCourseById(@PathVariable UUID id) {
+    public ResponseEntity<CourseResponseDto> getCourseById(@PathVariable UUID id) {
         return courseService.findById(id)
+                .map(CourseResponseDto::fromCourse)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -72,10 +118,49 @@ public class CourseController {
      */
     @GetMapping("/title/{title}")
     @PreAuthorize("hasAnyRole('ADMIN','TEACHER','STUDENT')")
-    public ResponseEntity<Course> getCourseByTitle(@PathVariable String title) {
+    public ResponseEntity<CourseResponseDto> getCourseByTitle(@PathVariable String title) {
         return courseService.findByTitle(title)
+                .map(CourseResponseDto::fromCourse)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
+     * Actualiza un curso.
+     * Solo los administradores o el profesor dueño del curso pueden hacerlo.
+     */
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    public ResponseEntity<CourseResponseDto> updateCourse(
+            @PathVariable UUID id,
+            @Valid @RequestBody CourseRequestDto request) {
+        User currentUser = securityUtils.getCurrentUserOrThrow();
+        Course course = courseService.findById(id)
+                .orElseThrow(() -> new RuntimeException("Curso no encontrado"));
+
+        // Verificar si es profesor y si es dueño del curso
+        if (currentUser.getRole() == User.Role.TEACHER) {
+            if (course.getTeacher() == null || !course.getTeacher().getId().equals(currentUser.getId())) {
+                return ResponseEntity.status(403).build();
+            }
+        }
+
+        if (request.getTitle() != null) {
+            course.setTitle(request.getTitle());
+        }
+        if (request.getDescription() != null) {
+            course.setDescription(request.getDescription());
+        }
+        if (request.getTeacherId() != null && currentUser.getRole() == User.Role.ADMIN) {
+            User teacher = userService.getUserById(request.getTeacherId());
+            if (teacher.getRole() != User.Role.TEACHER) {
+                throw new RuntimeException("El usuario especificado no es un profesor");
+            }
+            course.setTeacher(teacher);
+        }
+
+        Course updatedCourse = courseService.save(course);
+        return ResponseEntity.ok(CourseResponseDto.fromCourse(updatedCourse));
     }
 
     /**
@@ -84,15 +169,14 @@ public class CourseController {
      */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ResponseEntity<Void> deleteCourse(@PathVariable UUID id,
-                                             @AuthenticationPrincipal Jwt jwt) {
+    public ResponseEntity<Void> deleteCourse(@PathVariable UUID id) {
+        User currentUser = securityUtils.getCurrentUserOrThrow();
         Course course = courseService.findById(id)
                 .orElseThrow(() -> new RuntimeException("Curso no encontrado"));
 
         // Verificar si es profesor y si es dueño del curso
-        if (jwt.getClaimAsStringList("cognito:groups").contains("TEACHER")) {
-            String cognitoSub = jwt.getClaim("sub");
-            if (!course.getTeacher().getCognitoSub().equals(cognitoSub)) {
+        if (currentUser.getRole() == User.Role.TEACHER) {
+            if (course.getTeacher() == null || !course.getTeacher().getId().equals(currentUser.getId())) {
                 return ResponseEntity.status(403).build();
             }
         }

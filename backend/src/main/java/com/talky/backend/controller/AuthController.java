@@ -1,5 +1,6 @@
 package com.talky.backend.controller;
 
+import com.talky.backend.dto.UserResponseDto;
 import com.talky.backend.dto.UserSyncRequest;
 import com.talky.backend.model.User;
 import com.talky.backend.service.UserService;
@@ -22,9 +23,12 @@ public class AuthController {
         return "pong";
     }
 
-    // Endpoint privado: requiere un JWT válido (ID Token)
+    /**
+     * Endpoint privado: devuelve información del usuario autenticado con su rol.
+     * El frontend puede usar esta información para decidir qué mostrar.
+     */
     @GetMapping("/me")
-    public User getCurrentUser(@AuthenticationPrincipal Jwt jwt) {
+    public ResponseEntity<UserResponseDto> getCurrentUser(@AuthenticationPrincipal Jwt jwt) {
         String sub = jwt.getClaim("sub");
         String email = jwt.getClaim("email");
         String name = jwt.getClaim("name");
@@ -32,7 +36,7 @@ public class AuthController {
         String gender = jwt.getClaim("gender");
         String phoneNumber = jwt.getClaim("phone_number");
 
-        return userService.getByCognitoSub(sub)
+        User user = userService.getByCognitoSub(sub)
                 .orElseGet(() ->
                         userService.getByEmail(email)
                                 .orElseGet(() -> {
@@ -48,11 +52,16 @@ public class AuthController {
                                     return userService.save(newUser);
                                 })
                 );
+
+        return ResponseEntity.ok(UserResponseDto.fromUser(user));
     }
 
-    // Endpoint privado: sincroniza datos del usuario autenticado con la BD
+    /**
+     * Endpoint privado: sincroniza datos del usuario autenticado con la BD.
+     * Devuelve el DTO con información del rol.
+     */
     @PostMapping("/sync")
-    public ResponseEntity<User> syncUser(@AuthenticationPrincipal Jwt jwt) {
+    public ResponseEntity<UserResponseDto> syncUser(@AuthenticationPrincipal Jwt jwt) {
         UserSyncRequest req = new UserSyncRequest();
         req.setSub(jwt.getClaim("sub"));
         req.setEmail(jwt.getClaim("email"));
@@ -60,9 +69,10 @@ public class AuthController {
         req.setBirthdate(jwt.getClaim("birthdate"));
         req.setGender(jwt.getClaim("gender"));
         req.setPhoneNumber(jwt.getClaim("phone_number"));
-        req.setRole(User.Role.STUDENT);
+        // No establecer rol aquí, mantener el que ya tiene o usar STUDENT por defecto
+        req.setRole(null);
 
         User user = userService.syncUser(req);
-        return ResponseEntity.ok(user);
+        return ResponseEntity.ok(UserResponseDto.fromUser(user));
     }
 }

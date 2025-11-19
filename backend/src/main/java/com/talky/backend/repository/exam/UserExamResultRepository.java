@@ -1,4 +1,4 @@
-package com.talky.backend.repository;
+package com.talky.backend.repository.exam;
 
 import com.talky.backend.model.exam.UserExamResult;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -12,10 +12,15 @@ public interface UserExamResultRepository extends JpaRepository<UserExamResult, 
     /**
      * Obtiene todos los resultados de un examen.
      */
-    List<UserExamResult> findByExamId(UUID examId);
+    List<UserExamResult> findByExam_Id(UUID examId);
 
     /**
      * Obtiene el resultado de un usuario en un examen específico.
      */
-    Optional<UserExamResult> findByUserIdAndExamId(UUID userId, UUID examId);
+    Optional<UserExamResult> findByUser_IdAndExam_Id(UUID userId, UUID examId);
+
+    /**
+     * Obtiene todos los resultados de un usuario.
+     */
+    List<UserExamResult> findByUser_Id(UUID userId);
 }

@@ -46,14 +46,58 @@ public class ConversationService {
             );
         }
 
+        // --- Generar título único ---
+        String baseTitle = (title != null && !title.isBlank()) ? title.trim() : "Nueva conversación";
+        String uniqueTitle = generateUniqueTitle(user, baseTitle);
+
         Conversation conversation = Conversation.builder()
                 .user(user)
-                .title(title != null ? title : "Nueva conversación")
+                .title(uniqueTitle)
                 .mode(mode)
                 .build();
 
         return conversationRepository.save(conversation);
     }
+
+    /**
+     * Genera un título único y ordenado para el usuario.
+     * Ejemplo: "Nueva conversación", "Nueva conversación 2", "Nueva conversación 3"
+     * Si se borra alguna, el número se reutiliza.
+     */
+    private String generateUniqueTitle(User user, String baseTitle) {
+        List<Conversation> existing = conversationRepository.findByUser(user);
+
+        // Extraer los sufijos numéricos existentes de títulos similares
+        int maxNum = 0;
+        boolean baseExists = false;
+
+        for (Conversation conv : existing) {
+            String t = conv.getTitle();
+            if (t.equals(baseTitle)) {
+                baseExists = true;
+            } else if (t.startsWith(baseTitle + " ")) {
+                try {
+                    int num = Integer.parseInt(t.substring((baseTitle + " ").length()));
+                    if (num > maxNum) maxNum = num;
+                } catch (NumberFormatException ignored) {
+                }
+            }
+        }
+
+        // Buscar el primer número libre (reutilizable)
+        for (int i = 1; i <= maxNum + 1; i++) {
+            String candidate = (i == 1 && !baseExists)
+                    ? baseTitle
+                    : baseTitle + " " + i;
+            if (!conversationRepository.existsByUserAndTitle(user, candidate)) {
+                return candidate;
+            }
+        }
+
+        // Fallback en caso extremo
+        return baseTitle + " " + (maxNum + 1);
+    }
+
 
     /**
      * Obtiene todas las conversaciones de un usuario.
@@ -80,7 +124,7 @@ public class ConversationService {
         // Evitar títulos duplicados para el mismo usuario
         if (conversationRepository.existsByUserAndTitle(conversation.getUser(), newTitle)) {
             throw new ResponseStatusException(
-                    HttpStatus.CONFLICT, "Ya existe una conversación con ese título"
+                    HttpStatus.CONFLICT, "Ya existe una conversación con ese título."
             );
         }
 

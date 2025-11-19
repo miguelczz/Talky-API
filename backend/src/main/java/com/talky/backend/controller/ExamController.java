@@ -8,17 +8,16 @@ import com.talky.backend.service.exam.ExamService;
 import com.talky.backend.service.exam.QuestionService;
 import com.talky.backend.service.exam.UserExamResultService;
 import com.talky.backend.service.lesson.LessonService;
-import com.talky.backend.service.UserService;
 import com.talky.backend.dto.ExamResultDto;
+import com.talky.backend.util.SecurityUtils;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/exams")
@@ -28,20 +27,20 @@ public class ExamController {
     private final QuestionService questionService;
     private final LessonService lessonService;
     private final UserExamResultService userExamResultService;
-    private final UserService userService;
+    private final SecurityUtils securityUtils;
 
     public ExamController(
             ExamService examService,
             QuestionService questionService,
             LessonService lessonService,
             UserExamResultService userExamResultService,
-            UserService userService
+            SecurityUtils securityUtils
     ) {
         this.examService = examService;
         this.questionService = questionService;
         this.lessonService = lessonService;
         this.userExamResultService = userExamResultService;
-        this.userService = userService;
+        this.securityUtils = securityUtils;
     }
 
     // --- Gestión de exámenes ---
@@ -54,10 +53,43 @@ public class ExamController {
         return ResponseEntity.ok(examService.save(exam));
     }
 
+    /**
+     * Obtiene todos los exámenes.
+     * - Estudiantes: solo ven exámenes de su curso
+     * - Profesores: ven exámenes de sus cursos
+     * - Administradores: ven todos los exámenes
+     */
     @GetMapping
     @PreAuthorize("hasAnyRole('ADMIN','TEACHER','STUDENT')")
     public ResponseEntity<List<Exam>> getAllExams() {
-        return ResponseEntity.ok(examService.findAll());
+        User currentUser = securityUtils.getCurrentUserOrThrow();
+        List<Exam> exams;
+
+        if (currentUser.getRole() == User.Role.STUDENT) {
+            // Estudiantes solo ven exámenes de su curso
+            if (currentUser.getCourseAsStudent() == null) {
+                exams = List.of();
+            } else {
+                exams = examService.findAll().stream()
+                        .filter(exam -> exam.getLesson() != null &&
+                                exam.getLesson().getCourse() != null &&
+                                exam.getLesson().getCourse().getId().equals(currentUser.getCourseAsStudent().getId()))
+                        .collect(Collectors.toList());
+            }
+        } else if (currentUser.getRole() == User.Role.TEACHER) {
+            // Profesores ven exámenes de sus cursos
+            exams = examService.findAll().stream()
+                    .filter(exam -> exam.getLesson() != null &&
+                            exam.getLesson().getCourse() != null &&
+                            exam.getLesson().getCourse().getTeacher() != null &&
+                            exam.getLesson().getCourse().getTeacher().getId().equals(currentUser.getId()))
+                    .collect(Collectors.toList());
+        } else {
+            // Administradores ven todos los exámenes
+            exams = examService.findAll();
+        }
+
+        return ResponseEntity.ok(exams);
     }
 
     @GetMapping("/{id}")
@@ -122,13 +154,9 @@ public class ExamController {
     @PreAuthorize("hasRole('STUDENT')")
     public ResponseEntity<UserExamResult> submitExam(
             @PathVariable UUID examId,
-            @RequestBody ExamResultDto submission,
-            @AuthenticationPrincipal Jwt jwt
+            @RequestBody ExamResultDto submission
     ) {
-        String cognitoSub = jwt.getClaim("sub");
-
-        User student = userService.getByCognitoSub(cognitoSub)
-                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+        User student = securityUtils.getCurrentUserOrThrow();
 
         Exam exam = examService.findById(examId)
                 .orElseThrow(() -> new RuntimeException("Examen no encontrado"));
@@ -173,11 +201,28 @@ public class ExamController {
 
     /**
      * Profesor/Admin obtiene todos los resultados de un examen.
+     * - Profesores: solo ven resultados de exámenes de sus cursos
+     * - Administradores: ven todos los resultados
      */
     @GetMapping("/{examId}/results")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     public ResponseEntity<List<UserExamResult>> getResultsByExam(@PathVariable UUID examId) {
-        return ResponseEntity.ok(userExamResultService.findByExamId(examId));
+        User currentUser = securityUtils.getCurrentUserOrThrow();
+        List<UserExamResult> results = userExamResultService.findByExamId(examId);
+
+        if (currentUser.getRole() == User.Role.TEACHER) {
+            // Profesores solo ven resultados de exámenes de sus cursos
+            Exam exam = examService.findById(examId)
+                    .orElseThrow(() -> new RuntimeException("Examen no encontrado"));
+            
+            if (exam.getLesson() == null || exam.getLesson().getCourse() == null ||
+                    exam.getLesson().getCourse().getTeacher() == null ||
+                    !exam.getLesson().getCourse().getTeacher().getId().equals(currentUser.getId())) {
+                return ResponseEntity.status(403).build();
+            }
+        }
+
+        return ResponseEntity.ok(results);
     }
 
     /**

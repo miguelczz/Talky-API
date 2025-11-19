@@ -1,12 +1,12 @@
 package com.talky.backend.controller;
 
+import com.talky.backend.dto.UserResponseDto;
 import com.talky.backend.dto.UserSyncRequest;
 import com.talky.backend.model.User;
 import com.talky.backend.service.UserService;
+import com.talky.backend.util.SecurityUtils;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -18,8 +18,11 @@ import java.util.UUID;
 public class UserController {
 
     private final UserService userService;
-    public UserController(UserService userService) {
+    private final SecurityUtils securityUtils;
+
+    public UserController(UserService userService, SecurityUtils securityUtils) {
         this.userService = userService;
+        this.securityUtils = securityUtils;
     }
 
     /**
@@ -45,14 +48,18 @@ public class UserController {
      */
     @GetMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN','TEACHER','STUDENT')")
-    public ResponseEntity<User> getUserById(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
-        // Permitir que el usuario vea su propio perfil
-        String cognitoSub = jwt.getClaim("sub");
-        User user = userService.getUserById(id);
-        if (!user.getCognitoSub().equals(cognitoSub) && !jwt.getClaimAsStringList("cognito:groups").contains("ADMIN")) {
+    public ResponseEntity<UserResponseDto> getUserById(@PathVariable UUID id) {
+        User currentUser = securityUtils.getCurrentUserOrThrow();
+        User requestedUser = userService.getUserById(id);
+        
+        // Permitir que el usuario vea su propio perfil o que admin/teacher lo vea
+        if (!requestedUser.getId().equals(currentUser.getId()) && 
+            currentUser.getRole() != User.Role.ADMIN && 
+            currentUser.getRole() != User.Role.TEACHER) {
             return ResponseEntity.status(403).build();
         }
-        return ResponseEntity.ok(user);
+        
+        return ResponseEntity.ok(UserResponseDto.fromUser(requestedUser));
     }
 
     /**

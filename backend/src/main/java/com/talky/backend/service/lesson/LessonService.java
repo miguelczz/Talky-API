@@ -1,8 +1,10 @@
 package com.talky.backend.service.lesson;
 
+import com.talky.backend.model.Course;
 import com.talky.backend.model.lesson.Lesson;
 import com.talky.backend.repository.lesson.LessonRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -43,6 +45,37 @@ public class LessonService {
      */
     public Lesson save(Lesson lesson) {
         return lessonRepository.save(lesson);
+    }
+
+    @Transactional
+    public Lesson updateLesson(UUID id, Lesson lesson) {
+        Lesson existingLesson = lessonRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Lección no encontrada"));
+        
+        if (lesson.getTitle() != null) {
+            existingLesson.setTitle(lesson.getTitle());
+        }
+        if (lesson.getDescription() != null) {
+            existingLesson.setDescription(lesson.getDescription());
+        }
+        if (lesson.getCourse() != null) {
+            existingLesson.setCourse(lesson.getCourse());
+        }
+        
+        return lessonRepository.save(existingLesson);
+    }
+
+    /**
+     * Valida que un profesor sea dueño del curso de una lección.
+     */
+    public boolean validateCourseOwnership(UUID lessonId, UUID teacherId) {
+        Lesson lesson = lessonRepository.findById(lessonId)
+                .orElseThrow(() -> new RuntimeException("Lección no encontrada"));
+        
+        Course course = lesson.getCourse();
+        return course != null && 
+               course.getTeacher() != null && 
+               course.getTeacher().getId().equals(teacherId);
     }
 
     /**

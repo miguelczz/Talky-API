@@ -3,6 +3,7 @@ package com.talky.backend.service.exam;
 import com.talky.backend.model.exam.Question;
 import com.talky.backend.repository.exam.QuestionRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -43,6 +44,27 @@ public class QuestionService {
      */
     public Question save(Question question) {
         return questionRepository.save(question);
+    }
+
+    @Transactional
+    public Question updateQuestion(UUID id, Question question) {
+        Question existingQuestion = questionRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Pregunta no encontrada"));
+        
+        if (question.getText() != null) {
+            existingQuestion.setText(question.getText());
+        }
+        if (question.getOptions() != null) {
+            existingQuestion.setOptions(question.getOptions());
+        }
+        if (question.getCorrectAnswer() != null) {
+            existingQuestion.setCorrectAnswer(question.getCorrectAnswer());
+        }
+        if (question.getExam() != null) {
+            existingQuestion.setExam(question.getExam());
+        }
+        
+        return questionRepository.save(existingQuestion);
     }
 
     /**

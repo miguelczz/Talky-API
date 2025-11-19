@@ -1,5 +1,6 @@
 package com.talky.backend.service;
 
+import com.talky.backend.dto.UpdateProfileRequest;
 import com.talky.backend.dto.UserSyncRequest;
 import com.talky.backend.model.Course;
 import com.talky.backend.model.User;
@@ -103,11 +104,43 @@ public class UserService {
 
     /**
      * Actualiza el rol de un usuario.
+     * Valida que el cambio de rol sea válido.
      */
+    @Transactional
     public User updateUserRole(UUID id, User.Role newRole) {
         User user = getUserById(id);
+        
+        // Validaciones de cambio de rol
+        if (user.getRole() == newRole) {
+            throw new RuntimeException("El usuario ya tiene el rol " + newRole);
+        }
+        
+        // Si cambia de estudiante a otro rol, quitar el curso asignado
+        if (user.getRole() == User.Role.STUDENT && user.getCourseAsStudent() != null) {
+            user.setCourseAsStudent(null);
+        }
+        
+        // Si cambia a estudiante y tiene cursos como profesor, no permitir
+        if (newRole == User.Role.STUDENT && user.getCoursesAsTeacher() != null && !user.getCoursesAsTeacher().isEmpty()) {
+            throw new RuntimeException("No se puede cambiar a estudiante un usuario que tiene cursos asignados como profesor");
+        }
+        
         user.setRole(newRole);
         return userRepository.save(user);
+    }
+
+    /**
+     * Obtiene todos los usuarios con un rol específico.
+     */
+    public List<User> getUsersByRole(User.Role role) {
+        return userRepository.findByRole(role);
+    }
+
+    /**
+     * Obtiene usuarios que no tienen un curso asignado (estudiantes sin curso).
+     */
+    public List<User> getStudentsWithoutCourse() {
+        return userRepository.findByRoleAndCourseAsStudentIsNull(User.Role.STUDENT);
     }
 
     /**
@@ -135,6 +168,48 @@ public class UserService {
             throw new RuntimeException("Solo los estudiantes pueden ser desvinculados de un curso");
         }
         user.setCourseAsStudent(null);
+        return userRepository.save(user);
+    }
+
+    /**
+     * Actualiza el perfil de un usuario.
+     * Solo actualiza los campos proporcionados, no modifica email ni rol.
+     */
+    @Transactional
+    public User updateProfile(UUID userId, UpdateProfileRequest request) {
+        User user = getUserById(userId);
+
+        // Validar que al menos un campo esté presente
+        if (!request.hasAtLeastOneField()) {
+            throw new RuntimeException("Debe proporcionar al menos un campo para actualizar");
+        }
+
+        // Actualizar solo los campos proporcionados
+        if (request.getName() != null && !request.getName().trim().isEmpty()) {
+            user.setName(request.getName().trim());
+        }
+
+        if (request.getPhoneNumber() != null) {
+            if (request.getPhoneNumber().trim().isEmpty()) {
+                user.setPhoneNumber(null);
+            } else {
+                user.setPhoneNumber(request.getPhoneNumber().trim());
+            }
+        }
+
+        if (request.getBirthdate() != null) {
+            if (request.getBirthdate().trim().isEmpty()) {
+                user.setBirthdate(null);
+            } else {
+                user.setBirthdate(request.getBirthdate().trim());
+            }
+        }
+
+        if (request.getGender() != null) {
+            String gender = request.getNormalizedGender();
+            user.setGender(gender);
+        }
+
         return userRepository.save(user);
     }
 }
