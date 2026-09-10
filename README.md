@@ -1,79 +1,79 @@
 # Talky - Backend
 
-Este repositorio contiene la parte del backend de **Talky**, desarrollado con **Java**, **Spring Boot** y **PostgreSQL**. 
-Su función principal es gestionar la lógica de negocio del asistente, incluyendo la persistencia de usuarios, conversaciones 
-y contenido académico, además de centralizar la seguridad (Cognito + Spring Security) y las integraciones externas (n8n, OpenAI). 
-También provee mecanismos avanzados como control de abusos, migraciones versionadas y streaming de respuestas en tiempo real.
+This repository contains the backend portion of **Talky**, built with **Java**, **Spring Boot**, and **PostgreSQL**.
+Its main function is to manage the assistant's business logic, including persistence of users, conversations,
+and academic content, as well as centralizing security (Cognito + Spring Security) and external integrations (n8n, OpenAI).
+It also provides advanced mechanisms such as abuse control and versioned migrations.
 
 ---
 
-## Arquitectura y Tecnologías
+## Architecture & Technologies
 
 - **Java 17+**
 - **Spring Boot** (REST API)
-- **Spring Security con OAuth2 Resource Server** (validación de JWT de Cognito)
-- **Spring Data JPA** (manejo de entidades y repositorios)
-- **PostgreSQL** como base de datos principal
-- **Flyway** para control de versiones y migraciones
-- **Bucket4j** para rate limiting (prevención de abusos)
-- **WireMock** en pruebas para simular n8n/OpenAI
+- **Spring Security with OAuth2 Resource Server** (Cognito JWT validation)
+- **Spring Data JPA** (entity and repository management)
+- **PostgreSQL** as the main database
+- **Flyway** for version control and migrations
+- **Bucket4j** for rate limiting (abuse prevention)
+- **WireMock** in tests to mock n8n/OpenAI
 
 ---
 
-## Entidades principales
+## Core Entities
 
-### Usuarios y sesiones
-- **User** → información básica del usuario (sub de Cognito, email, nombre, rol)
-- **Conversation** → hilo de conversación asociado a un usuario
-- **Message** → mensajes dentro de una conversación, con soporte de metadatos (JSONB)
+### Users and Sessions
+- **User** → basic user info (Cognito sub, email, name, role)
+- **Conversation** → conversation thread linked to a user
+- **Message** → messages within a conversation, with metadata support (JSONB)
 
-### Contenido académico
-- **GlossaryTerm** → términos y definiciones del glosario
-- **Lesson** → lecciones organizadas por nivel/orden
-- **Exam** → exámenes asociados a una lección
-- **Question** → preguntas de un examen (opciones en JSONB)
-- **UserExamResult** → resultados de los exámenes de un usuario
-
----
-
-## Endpoints base
-
-- `POST /api/v1/conversations` → crea una conversación
-- `GET /api/v1/conversations` → lista conversaciones del usuario
-- `GET /api/v1/conversations/{id}` → detalle de una conversación
-- `POST /api/v1/conversations/{id}/messages` → envía mensaje y recibe respuesta
-- `GET /api/v1/glossary` → lista términos del glosario
-- `GET /api/v1/lessons` → lista lecciones
-- `GET /api/v1/exams/{id}` → detalle de un examen con preguntas
-- `POST /api/v1/exams/{id}/submit` → registrar resultado de un examen
+### Academic Content
+- **GlossaryTerm** → glossary terms and definitions
+- **Lesson** → lessons organized by level/order
+- **Exam** → exams linked to a lesson
+- **Question** → exam questions (options stored as JSONB)
+- **UserExamResult** → a user's exam results
 
 ---
 
-## Integraciones externas
+## Core Endpoints
 
-- **AWS Cognito**: gestión de usuarios y validación de tokens JWT en el backend.
-- **n8n**: orquestación de flujos, se recibe y envía información a través de webhooks.
-- **OpenAI** (planeado): posible conexión directa para habilitar streaming token a token.
+- `POST /api/v1/conversations` → creates a conversation
+- `GET /api/v1/conversations` → lists the user's conversations
+- `GET /api/v1/conversations/{id}` → conversation detail
+- `POST /api/v1/conversations/{id}/messages` → sends a message and receives a response
+- `GET /api/v1/glossary` → lists glossary terms
+- `GET /api/v1/lessons` → lists lessons
+- `GET /api/v1/exams/{id}` → exam detail with questions
+- `POST /api/v1/exams/{id}/submit` → records an exam result
 
 ---
 
-## Ejecución del proyecto
+## External Integrations
 
-Clonar el repositorio:
+- **AWS Cognito**: user management and JWT token validation in the backend.
+- **n8n**: flow orchestration; information is received and sent via webhooks.
+- **OpenAI** (planned): possible direct connection to enable token-by-token streaming.
+
+---
+
+## Running the Project
+
+Clone the repository:
 
 ```bash
 git clone https://github.com/miguelczz/talky-API.git
 cd talky-API
 ```
 
-Compilar y ejecutar con Maven:
+Build and run with Maven:
 
 ```bash
 mvn clean install
 mvn spring-boot:run
 ```
 
-El backend se levantará en:
+The backend will start at:
 
 ```
 http://localhost:8080
@@ -81,8 +81,8 @@ http://localhost:8080
 
 ---
 
-## Notas de seguridad
+## Security Notes
 
-- La validación de usuarios se realiza con **JWT de Cognito** a través de Spring Security.  
-- Configura las credenciales de base de datos y servicios externos mediante **variables de entorno** o en un archivo de configuración seguro.  
-- Utiliza un archivo `.gitignore` adecuado para evitar subir información sensible (claves, contraseñas, etc.).  
+- User validation is handled with **Cognito JWT** through Spring Security.
+- Configure database credentials and external service credentials via **environment variables** or a secure configuration file.
+- Use an appropriate `.gitignore` to avoid committing sensitive information (keys, passwords, etc.).
